@@ -10,13 +10,13 @@ def quantize_model(model, args, quant_mix_gate=False):
         
         # replace the attention module
         if 'chatglm3' in model.config._name_or_path.lower():
-            from qllm_eval.quantization.qattn.sw.glm3_attn import SelfAttention
+            from kv_quant.quantization.qattn.sw.glm3_attn import SelfAttention
             for i, block in enumerate(model.transformer.encoder.layers):
                 new_attn = SelfAttention(model.config, block.self_attention.layer_number, block.self_attention.query_key_value.weight.device).half().to(block.self_attention.query_key_value.weight.device)
                 new_attn.load_state_dict(block.self_attention.state_dict())
                 block.self_attention = new_attn
         elif 'chatglm2' in model.config._name_or_path.lower():
-            from qllm_eval.quantization.qattn.sw.glm2_attn import SelfAttention
+            from kv_quant.quantization.qattn.sw.glm2_attn import SelfAttention
             for i, block in enumerate(model.transformer.encoder.layers):
                 new_attn = SelfAttention(model.config, block.self_attention.layer_number, block.self_attention.query_key_value.weight.device).half().to(block.self_attention.query_key_value.weight.device)
                 new_attn.load_state_dict(block.self_attention.state_dict())
@@ -24,19 +24,19 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'opt' in model.config._name_or_path.lower():
             if model.config._flash_attn_2_enabled:
                 print("Using flash attention for LLaMA model")
-                from qllm_eval.quantization.qattn.sw.opt_attn import OptFlashAttention2
+                from kv_quant.quantization.qattn.sw.opt_attn import OptFlashAttention2
                 for i, block in enumerate(model.model.decoder.layers):
                     new_attn = OptFlashAttention2(model.config, block.self_attn.is_decoder).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.opt_attn import OPTAttention
+                from kv_quant.quantization.qattn.sw.opt_attn import OPTAttention
                 for i, block in enumerate(model.model.decoder.layers):
                     new_attn = OPTAttention(model.config, block.self_attn.is_decoder).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
         elif 'bloom' in model.config._name_or_path.lower():
-            from qllm_eval.quantization.qattn.sw.bloom_attn import BloomAttention
+            from kv_quant.quantization.qattn.sw.bloom_attn import BloomAttention
             for i, block in enumerate(model.transformer.h):
                 new_attn = BloomAttention(model.config).half().to(block.self_attention.query_key_value.weight.device)
                 new_attn.load_state_dict(block.self_attention.state_dict())
@@ -44,13 +44,13 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'llama' in model.config.architectures[0].lower() or 'vicuna' in model.config.architectures[0].lower() or 'longchat' in model.config.architectures[0].lower() or 'baichuan' in model.config.architectures[0].lower():
             if model.config._flash_attn_2_enabled:
                 print("Using flash attention for LLaMA model")
-                from qllm_eval.quantization.qattn.sw.llama_attn import LlamaFlashAttention2
+                from kv_quant.quantization.qattn.sw.llama_attn import LlamaFlashAttention2
                 for i, block in enumerate(model.model.layers):
                     new_attn = LlamaFlashAttention2(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.llama_attn import LlamaAttention
+                from kv_quant.quantization.qattn.sw.llama_attn import LlamaAttention
                 for i, block in enumerate(model.model.layers):
                     new_attn = LlamaAttention(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
@@ -58,13 +58,13 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'falcon' in model.config.architectures[0].lower():
             if model.config._attn_implementation == "flash_attention_2":
                 print("Using flash attention for Falcon model")
-                from qllm_eval.quantization.qattn.sw.falcon_attn import FalconFlashAttention2
+                from kv_quant.quantization.qattn.sw.falcon_attn import FalconFlashAttention2
                 for i, block in enumerate(model.transformer.h):
                     new_attn = FalconFlashAttention2(model.config).half().to(block.self_attention.query_key_value.weight.device)
                     new_attn.load_state_dict(block.self_attention.state_dict())
                     block.self_attention = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.falcon_attn import FalconAttention
+                from kv_quant.quantization.qattn.sw.falcon_attn import FalconAttention
                 for i, block in enumerate(model.transformer.h):
                     new_attn = FalconAttention(model.config).half().to(block.self_attention.query_key_value.weight.device)
                     new_attn.load_state_dict(block.self_attention.state_dict())
@@ -72,13 +72,13 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'stable' in model.config.architectures[0].lower():
             if model.config._flash_attn_2_enabled:
                 print("Using flash attention for LLaMA model")
-                from qllm_eval.quantization.qattn.sw.stable_attn import FlashAttention2
+                from kv_quant.quantization.qattn.sw.stable_attn import FlashAttention2
                 for i, block in enumerate(model.model.layers):
                     new_attn = FlashAttention2(model.config).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.stable_attn import Attention
+                from kv_quant.quantization.qattn.sw.stable_attn import Attention
                 for i, block in enumerate(model.model.layers):
                     new_attn = Attention(model.config).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
@@ -86,13 +86,13 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'mistral' in model.config.architectures[0].lower():
             if model.config._attn_implementation == "flash_attention_2":
                 print("Using flash attention for Mistral model")
-                from qllm_eval.quantization.qattn.sw.mistral_attn import MistralFlashAttention2
+                from kv_quant.quantization.qattn.sw.mistral_attn import MistralFlashAttention2
                 for i, block in enumerate(model.model.layers):
                     new_attn = MistralFlashAttention2(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.mistral_attn import MistralAttention
+                from kv_quant.quantization.qattn.sw.mistral_attn import MistralAttention
                 for i, block in enumerate(model.model.layers):
                     new_attn = MistralAttention(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
@@ -100,24 +100,24 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'mixtral' in model.config.architectures[0].lower():
             if model.config._attn_implementation == "flash_attention_2":
                 print("Using flash attention for Mixtral model")
-                from qllm_eval.quantization.qattn.sw.mixtral_attn import MixtralFlashAttention2
+                from kv_quant.quantization.qattn.sw.mixtral_attn import MixtralFlashAttention2
                 for i, block in enumerate(model.model.layers):
                     new_attn = MixtralFlashAttention2(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.mixtral_attn import MixtralAttention
+                from kv_quant.quantization.qattn.sw.mixtral_attn import MixtralAttention
                 for i, block in enumerate(model.model.layers):
                     new_attn = MixtralAttention(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
         elif 'mpt' in model.config.architectures[0].lower():
-            # from qllm_eval.quantization.qattn.sw.mpt_attn import MptAttention
+            # from kv_quant.quantization.qattn.sw.mpt_attn import MptAttention
             # for i, block in enumerate(model.transformer.blocks):
             #     new_attn = MptAttention(model.config).half().to(block.attn.Wqkv_proj.weight.device)
             #     new_attn.load_state_dict(block.attn.state_dict())
             #     block.attn = new_attn
-            from qllm_eval.quantization.qattn.sw.mpt_attn import flash_attn_fn, scaled_multihead_dot_product_attention, triton_flash_attn_fn
+            from kv_quant.quantization.qattn.sw.mpt_attn import flash_attn_fn, scaled_multihead_dot_product_attention, triton_flash_attn_fn
             for i, block in enumerate(model.transformer.blocks):
                 if model.config.attn_config['attn_impl'] == 'flash':
                     block.attn.attn_fn = partial(flash_attn_fn, kv_bit=model.config.kv_bit, kv_group_size=model.config.kv_group_size)
@@ -130,13 +130,13 @@ def quantize_model(model, args, quant_mix_gate=False):
         elif 'gemma' in model.config.architectures[0].lower():
             if model.config._attn_implementation == "flash_attention_2":
                 print("Using flash attention for Gemma model")
-                from qllm_eval.quantization.qattn.sw.gemma_attn import GemmaFlashAttention2
+                from kv_quant.quantization.qattn.sw.gemma_attn import GemmaFlashAttention2
                 for i, block in enumerate(model.model.layers):
                     new_attn = GemmaFlashAttention2(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
                     block.self_attn = new_attn
             else:
-                from qllm_eval.quantization.qattn.sw.gemma_attn import GemmaAttention
+                from kv_quant.quantization.qattn.sw.gemma_attn import GemmaAttention
                 for i, block in enumerate(model.model.layers):
                     new_attn = GemmaAttention(model.config, block.self_attn.layer_idx).half().to(block.self_attn.q_proj.weight.device)
                     new_attn.load_state_dict(block.self_attn.state_dict())
@@ -146,7 +146,7 @@ def quantize_model(model, args, quant_mix_gate=False):
         torch.cuda.empty_cache()
     else:
         if 'mpt' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.sw.mpt_attn import flash_attn_fn, scaled_multihead_dot_product_attention, triton_flash_attn_fn
+            from kv_quant.quantization.qattn.sw.mpt_attn import flash_attn_fn, scaled_multihead_dot_product_attention, triton_flash_attn_fn
             for i, block in enumerate(model.transformer.blocks):
                 if model.config.attn_config['attn_impl'] == 'flash':
                     block.attn.attn_fn = partial(flash_attn_fn, kv_bit=model.config.kv_bit, kv_group_size=model.config.kv_group_size)
@@ -172,8 +172,8 @@ def quantize_model(model, args, quant_mix_gate=False):
 
     # Weight-Activation quantization
     if args.w_bit is not None and args.w_bit > 0 and args.w_bit < 16 and args.a_bit is not None and args.a_bit > 0 and args.a_bit < 16:
-        from qllm_eval.quantization.qlinear.sqwa import WALinear
-        from qllm_eval.utils import get_module_by_name_suffix
+        from kv_quant.quantization.qlinear.sqwa import WALinear
+        from kv_quant.utils import get_module_by_name_suffix
         # Replace original Linear module
         for name, module in model.named_modules():
             if isinstance(module, torch.nn.Linear) and 'lm_head' not in name and 'output_layer' not in name:
@@ -197,19 +197,19 @@ def quantize_model_hw(model, args):
 
         # replace the attention module
         if 'chatglm' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.hw.glm3_attn import SelfAttention
+            from kv_quant.quantization.qattn.hw.glm3_attn import SelfAttention
             for i, block in enumerate(model.transformer.encoder.layers):
                 new_attn = SelfAttention(model.config, block.self_attention.layer_number, block.self_attention.query_key_value.weight.device).half().to(block.self_attention.query_key_value.weight.device)
                 new_attn.load_state_dict(block.self_attention.state_dict())
                 block.self_attention = new_attn
         elif 'llama' in model.config.architectures[0].lower() or 'vicuna' in model.config.architectures[0].lower() or 'longchat' in model.config.architectures[0].lower() or 'baichuan' in model.config.architectures[0].lower() or 'chat' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.hw.llama_attn import LlamaAttention
+            from kv_quant.quantization.qattn.hw.llama_attn import LlamaAttention
             for i, block in enumerate(model.model.layers):
                 new_attn = LlamaAttention(block.self_attn.config).half().to(block.self_attn.q_proj.weight.device)
                 new_attn.load_state_dict(block.self_attn.state_dict())
                 block.self_attn = new_attn
         elif 'tele' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.hw.tele_attn import TelechatAttention
+            from kv_quant.quantization.qattn.hw.tele_attn import TelechatAttention
             for i, block in enumerate(model.transformer.h):
                 new_attn = TelechatAttention(block.self_attention.config, block.self_attention.layer_idx).half().to(block.self_attention.query.weight.device)
                 new_attn.load_state_dict(block.self_attention.state_dict())
@@ -219,8 +219,8 @@ def quantize_model_hw(model, args):
 
     # Weight-only quantization
     if args.w_bit is not None and args.w_bit > 0 and args.w_bit < 16 and args.a_bit >= 16:
-        from qllm_eval.quantization.qlinear.hqw import WLinear
-        from qllm_eval.utils import get_module_by_name_suffix
+        from kv_quant.quantization.qlinear.hqw import WLinear
+        from kv_quant.utils import get_module_by_name_suffix
         # Replace original Linear module
         # Use original Linear module
         for name, module in model.named_modules():
@@ -231,8 +231,8 @@ def quantize_model_hw(model, args):
 
     # Weight-Activation quantization
     if args.w_bit is not None and args.w_bit > 0 and args.w_bit < 16 and args.a_bit is not None and args.a_bit > 0 and args.a_bit < 16:
-        from qllm_eval.quantization.qlinear.hqwa import WALinear_online
-        from qllm_eval.utils import get_module_by_name_suffix
+        from kv_quant.quantization.qlinear.hqwa import WALinear_online
+        from kv_quant.utils import get_module_by_name_suffix
         # Replace original Linear module
         # Use original Linear module
         for name, module in model.named_modules():
@@ -250,17 +250,17 @@ def quantize_model_hw_init(model, args):
 
         # replace the attention module
         if 'chatglm' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.hw.glm3_attn import SelfAttention
+            from kv_quant.quantization.qattn.hw.glm3_attn import SelfAttention
             for i, block in enumerate(model.transformer.encoder.layers):
                 new_attn = SelfAttention(model.config, block.self_attention.layer_number, block.self_attention.query_key_value.weight.device).half().to(block.self_attention.query_key_value.weight.device)
                 block.self_attention = new_attn
         elif 'llama' in model.config.architectures[0].lower() or 'vicuna' in model.config.architectures[0].lower() or 'longchat' in model.config.architectures[0].lower() or 'baichuan' in model.config.architectures[0].lower() or 'chat' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.hw.llama_attn import LlamaAttention
+            from kv_quant.quantization.qattn.hw.llama_attn import LlamaAttention
             for i, block in enumerate(model.model.layers):
                 new_attn = LlamaAttention(block.self_attn.config).half().to(block.self_attn.q_proj.weight.device)
                 block.self_attn = new_attn
         elif 'tele' in model.config.architectures[0].lower():
-            from qllm_eval.quantization.qattn.hw.tele_attn import TelechatAttention
+            from kv_quant.quantization.qattn.hw.tele_attn import TelechatAttention
             for i, block in enumerate(model.transformer.h):
                 new_attn = TelechatAttention(block.self_attention.config, block.self_attention.layer_idx).half().to(block.self_attention.query.weight.device)
                 block.self_attention = new_attn
@@ -269,8 +269,8 @@ def quantize_model_hw_init(model, args):
 
     # Weight-only quantization
     if args.w_bit is not None and args.w_bit > 0 and args.w_bit < 16 and args.a_bit >= 16:
-        from qllm_eval.quantization.qlinear.hqw import WLinear
-        from qllm_eval.utils import get_module_by_name_suffix
+        from kv_quant.quantization.qlinear.hqw import WLinear
+        from kv_quant.utils import get_module_by_name_suffix
         # Replace original Linear module
         # Use original Linear module
         for name, module in model.named_modules():
@@ -281,8 +281,8 @@ def quantize_model_hw_init(model, args):
 
     # Weight-Activation quantization
     if args.w_bit is not None and args.w_bit > 0 and args.w_bit < 16 and args.a_bit is not None and args.a_bit > 0 and args.a_bit < 16:
-        from qllm_eval.quantization.qlinear.hqwa import WALinear_online
-        from qllm_eval.utils import get_module_by_name_suffix
+        from kv_quant.quantization.qlinear.hqwa import WALinear_online
+        from kv_quant.utils import get_module_by_name_suffix
         # Replace original Linear module
         # Use original Linear module
         for name, module in model.named_modules():
