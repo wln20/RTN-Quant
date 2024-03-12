@@ -57,16 +57,16 @@ with open(run_file, 'w') as f:
     # step1: gen_model_answer
     for model in models:
         # baseline
-        f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python basic_quant_kv.py --model_path {path_dict[model]} --model_id {model}\n")
+        f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python quant_online.py --model_path {path_dict[model]} --model_id {model}\n")
         #model_ids.append(model)
         # quant 
         if mode == 'kv' or mode == 'w':
             for wbit in bit_widths[mode]:
-                f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python basic_quant_kv.py --model_path {path_dict[model]} --model_id {model}_quant_{mode}_{wbit} --{mode}_bit {wbit} {f'--{mode}_group_size 64' if 'falcon' in model else f'--{mode}_group_size 128'}\n")
+                f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python quant_online.py --model_path {path_dict[model]} --model_id {model}_quant_{mode}_{wbit} --{mode}_bit {wbit} {f'--{mode}_group_size 64' if 'falcon' in model else f'--{mode}_group_size 128'}\n")
         elif mode == 'wa':
             for wbit, abit in bit_widths[mode]:
-                f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python basic_quant_kv.py --model_path {path_dict[model]} --model_id {model}_quant_w_{wbit}_a_{abit} --w_bit {wbit} --a_bit {abit}\n" )
+                f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python quant_online.py --model_path {path_dict[model]} --model_id {model}_quant_w_{wbit}_a_{abit} --w_bit {wbit} --a_bit {abit}\n" )
         elif mode == 'wkv':   
             for wbit, kvbit in bit_widths[mode]:
-                f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python basic_quant_kv.py --model_path {path_dict[model]} --model_id {model}_quant_w_{wbit}_kv_{kvbit} --w_bit {wbit} --kv_bit {kvbit} {f'--w_group_size 64 --kv_group_size 64' if 'falcon' in model else f'--w_group_size 128 --kv_group_size 128'}\n")
+                f.write(f"CUDA_VISIBLE_DEVICES='{gpu}' python quant_online.py --model_path {path_dict[model]} --model_id {model}_quant_w_{wbit}_kv_{kvbit} --w_bit {wbit} --kv_bit {kvbit} {f'--w_group_size 64 --kv_group_size 64' if 'falcon' in model else f'--w_group_size 128 --kv_group_size 128'}\n")
 
