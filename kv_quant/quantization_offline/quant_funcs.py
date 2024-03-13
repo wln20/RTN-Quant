@@ -1,7 +1,8 @@
 import torch
+from einops import repeat
 
 @torch.no_grad()
-def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=None, position_id=0, return_param=False):
+def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=None, position_id=0, batch=1, return_param=False):
     """
     The basic quantization function for weight, activation and KV cache.
     return_param: whether to return scales and zeros (for offline generating stage on calib dataset)
@@ -34,12 +35,24 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
         if zero_point:
             max_int = 2**n_bits - 1
             min_int = 0
-            if tensor.shape[0] == 1:    # at decoding stage, use position_id to locate
-                scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
-                zeros = offline_cache[1][position_id].unsqueeze(0).to(tensor.device)
+            seq_len = int(tensor.shape[0] / batch)   # tensor.shape: prefill: [26, 4096] <- [2, 13, 4096], or decode: [2, 4096] <- [2, 1, 4096]
+            if seq_len == 1:    # at decoding stage, use position_id to locate
+                if batch == 1:
+                    scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
+                    zeros = offline_cache[1][position_id].unsqueeze(0).to(tensor.device)
+                else:   # decoding stage but multi batches
+                    scales = repeat(offline_cache[0][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
+                    zeros = repeat(offline_cache[1][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
+
             else:   # prefill stage or kv-cache disabled
-                scales = offline_cache[0][:tensor.shape[0]].to(tensor.device)
-                zeros = offline_cache[1][:tensor.shape[0]].to(tensor.device)
+                if batch == 1:
+                    scales = offline_cache[0][:seq_len].to(tensor.device)
+                    zeros = offline_cache[1][:seq_len].to(tensor.device)
+                else:   # prefill stage and multi batches
+                    scales = repeat(offline_cache[0][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
+                    zeros = repeat(offline_cache[1][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
+
+
             # ================= experiment ================================
             # pre = 1
             # max_val = tensor[:pre].amax(dim=1, keepdim=True)
@@ -95,8 +108,9 @@ def quantize_weight_per_channel_absmax(w, n_bits=8, offline_cache=None, position
 @torch.no_grad()
 def quantize_activation_per_token_absmax(t, n_bits=8, offline_cache=None, position_id=0, return_param=False):
     t_shape = t.shape
-    t = t.view(-1, t_shape[-1]) # [1, 13, 4096] -> [13, 4096]
-    res = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, return_param=return_param)
+    batch = t_shape[0] if t.dim() == 3 else 1
+    t = t.view(-1, t_shape[-1]) # [1, 13, 4096] -> [13, 4096]. when using batch: [2, 13, 4096] -> [26, 4096]
+    res = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, batch=batch, return_param=return_param)
     if return_param:
         tensor, scales, zeros = res # [13, 4096], [13, 1], [13, 1]
         return tensor.reshape(t_shape), scales, zeros   # [13, 4096] -> [1, 13, 4096]

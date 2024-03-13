@@ -29,10 +29,11 @@ args = parser.parse_args()
 def main():
     # a hack here to auto set model group
     model, enc = build_model_and_enc(args.model_path, args.use_flash_attn, args.kv_bit, args.kv_group_size)
+    enc.pad_token = enc.eos_token
 
     # full evaluation on original model
-    if args.eval_tasks:
-        evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=None, limit=500, batch_size=1, max_length=4096)
+    # if args.eval_tasks:
+    #     evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=None, limit=500, batch_size=1, max_length=4096)
 
     # quantize model
     if args.offline_excluded:
@@ -52,17 +53,19 @@ def main():
     # simple evaluation
     print('* Generating ...')
     print('='*40)
-    prompt = "Give a brief introduction of China: "
-    print(f'Prompt: {prompt}')
+    prompts = ["Give a brief introduction of China: ", "Introduce Japan: "]
+    print(f'Prompts: {prompts}')
     print('-'*40)
-    input_ids = enc(prompt, return_tensors="pt")['input_ids'].to(next(model.parameters()).device)
+    input_ids = enc(prompts, padding=True, return_tensors="pt")['input_ids'].to(next(model.parameters()).device)
     output = model.generate(input_ids, use_cache=True, do_sample=True, max_new_tokens=200, top_p=0.95, top_k=60)
-    print(f'Output: {enc.decode(output[0])}')
+    for i, prompt in enumerate(prompts):
+        print(f'Output_{i}: {enc.decode(output[i])}')
+        print('-'*20)
     print('='*40)
 
     # full evaluation on quant model
-    if args.eval_tasks:
-        evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=f'W{args.w_bit} A{args.a_bit}', limit=500, batch_size=1, max_length=4096)
+    # if args.eval_tasks:
+    #     evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=f'W{args.w_bit} A{args.a_bit}', limit=500, batch_size=1, max_length=4096)
 
 if __name__ == "__main__":
     main()
