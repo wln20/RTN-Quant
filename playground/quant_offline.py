@@ -43,17 +43,17 @@ def main():
         model.save_pretrained(args.output_path, safe_serialization=False)
         enc.save_pretrained(args.output_path)
 
-    # evaluation
+    # simple evaluation
     print('* Generating ...')
     print('='*40)
     prompt = "Give a brief introduction of China:  "
     print(f'Prompt: {prompt}')
     print('-'*40)
     input_ids = enc(prompt, return_tensors="pt")['input_ids'].to(next(model.parameters()).device)
-    output = model.generate(input_ids, use_cache=False, do_sample=True, max_new_tokens=200, top_p=0.95, top_k=60)
+    output = model.generate(input_ids, use_cache=True, do_sample=True, max_new_tokens=200, top_p=0.95, top_k=60)
     print(f'Output: {enc.decode(output[0])}')
     print('='*40)
-    
+
 
 if __name__ == "__main__":
     main()

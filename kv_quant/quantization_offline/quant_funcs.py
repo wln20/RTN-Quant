@@ -1,11 +1,12 @@
 import torch
 
 @torch.no_grad()
-def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=None, return_param=False):
+def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=None, position_id=0, return_param=False):
     """
     The basic quantization function for weight, activation and KV cache.
     return_param: whether to return scales and zeros (for offline generating stage on calib dataset)
     offline_cache: whether to use offline-collected scales and zeros (for offline quantization using pre-generated scales and zeros)
+    position_id: when using offline-collected scales and zeros, if use kv-cache to generate, position_id must be used to determine the position of the current token, at the decoding stage
     """
     org_tensor_shape = tensor.shape
     if q_group_size > 0:
@@ -33,8 +34,12 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
         if zero_point:
             max_int = 2**n_bits - 1
             min_int = 0
-            scales = offline_cache[0][:tensor.shape[0]].to(tensor.device)
-            zeros = offline_cache[1][:tensor.shape[0]].to(tensor.device)
+            if tensor.shape[0] == 1:    # at decoding stage, use position_id to locate
+                scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
+                zeros = offline_cache[1][position_id].unsqueeze(0).to(tensor.device)
+            else:   # prefill stage or kv-cache disabled
+                scales = offline_cache[0][:tensor.shape[0]].to(tensor.device)
+                zeros = offline_cache[1][:tensor.shape[0]].to(tensor.device)
             # ================= experiment ================================
             # pre = 1
             # max_val = tensor[:pre].amax(dim=1, keepdim=True)
@@ -77,21 +82,21 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
 
 
 @torch.no_grad()
-def quantize_weight_per_channel_absmax(w, n_bits=8, offline_cache=None, return_param=False):
+def quantize_weight_per_channel_absmax(w, n_bits=8, offline_cache=None, position_id=0, return_param=False):
     """
     The basic quantization function for weight, activation and KV cache.
     """
-    res = pseudo_quantize_tensor(w, n_bits=n_bits, zero_point=False, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, return_param=return_param)
+    res = pseudo_quantize_tensor(w, n_bits=n_bits, zero_point=False, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, return_param=return_param)
     if return_param:
         tensor, scales, zeros = res
         return tensor, scales, zeros
     return res
     
 @torch.no_grad()
-def quantize_activation_per_token_absmax(t, n_bits=8, offline_cache=None, return_param=False):
+def quantize_activation_per_token_absmax(t, n_bits=8, offline_cache=None, position_id=0, return_param=False):
     t_shape = t.shape
     t = t.view(-1, t_shape[-1]) # [1, 13, 4096] -> [13, 4096]
-    res = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, return_param=return_param)
+    res = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, return_param=return_param)
     if return_param:
         tensor, scales, zeros = res # [13, 4096], [13, 1], [13, 1]
         return tensor.reshape(t_shape), scales, zeros   # [13, 4096] -> [1, 13, 4096]

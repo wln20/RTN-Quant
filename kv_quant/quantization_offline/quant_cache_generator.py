@@ -45,7 +45,7 @@ def main():
     for i in tqdm(range(len(calib_dataset)//args.calib_proportion_div)):
         try:
             input_ids = torch.tensor(calib_dataset[i]['token_ids']).to(model.device)
-            output = model.generate(input_ids, max_new_tokens=1)
+            output = model.generate(input_ids, use_cache=False, max_new_tokens=1)
         except:
             continue
         # out = tokenizer.decode(output[0])

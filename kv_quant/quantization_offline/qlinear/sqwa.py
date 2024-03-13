@@ -21,7 +21,9 @@ class WALinear(nn.Module):
             # need to do average when calculating
             self.act_scales = torch.zeros(max_len, 1)
             self.act_zeros = torch.zeros(max_len, 1)
-            self.num_acts = 0   
+            self.num_acts = 0
+        # the position_id of the current token (only applicable to decoding stage)   
+        self.position_id = 0
 
         self.register_buffer('weight', torch.zeros(self.out_features,
                                                    self.in_features, dtype=torch.float16, requires_grad=False, device=dev))
@@ -58,13 +60,26 @@ class WALinear(nn.Module):
 
     @torch.no_grad()
     def forward(self, x):
-        if self.return_param:   # return scales and activations
-            q_x, scales, zeros = self.act_quant(x)
+        # x: [1, 13, 4096]
+
+        # return scales and activations, used when generating scales and activations offline
+        if self.return_param:   
+            q_x, scales, zeros = self.act_quant(x, position_id=self.position_id)
             self.act_scales[: scales.shape[0]] += scales.cpu()
             self.act_zeros[: zeros.shape[0]] += zeros.cpu()
             self.num_acts += 1
-        else:
-            q_x = self.act_quant(x)
+        else:  
+            q_x = self.act_quant(x, position_id=self.position_id)
+
+        # update position
+        # eg. At prefill stage assume the sequence is: [token_0, ..., token_8], seq_len=9, set self.position_id=9.
+        # Then token_9 comes, its position_id should be 9, so first pass the original self.position_id to self.act_quant, then update self.postion_id to be 9+1=10
+        seq_len = x.shape[1] if x.dim() == 3 else x.shape[0]
+        if seq_len > 1: # prefill stage
+            self.position_id = seq_len
+        else:           # decode stage
+            self.position_id += 1
+
         y = torch.functional.F.linear(q_x.to(self.weight.dtype), self.weight, self.bias)
         q_y = self.output_quant(y)
         return q_y
