@@ -35,6 +35,21 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
             min_int = 0
             scales = offline_cache[0][:tensor.shape[0]].to(tensor.device)
             zeros = offline_cache[1][:tensor.shape[0]].to(tensor.device)
+            # ================= experiment ================================
+            # pre = 1
+            # max_val = tensor[:pre].amax(dim=1, keepdim=True)
+            # min_val = tensor[:pre].amin(dim=1, keepdim=True)
+            # max_int = 2**n_bits - 1
+            # min_int = 0
+            # scales_pre = (max_val - min_val).clamp(min=1e-5) / max_int
+            # zeros_pre = (-torch.round(min_val / scales_pre)).clamp_(min_int, max_int)
+
+            # scales = offline_cache[0][pre:tensor.shape[0]].to(tensor.device)
+            # zeros = offline_cache[1][pre:tensor.shape[0]].to(tensor.device)
+
+            # scales = torch.cat((scales_pre, scales), dim=0)
+            # zeros = torch.cat((zeros_pre, zeros), dim=0)
+            # ==============================================================
         else:
             max_int = 2 ** (n_bits - 1) - 1
             min_int = -(2 ** (n_bits - 1))
