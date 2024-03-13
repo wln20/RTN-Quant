@@ -10,19 +10,26 @@ from kv_quant.utils import build_model_and_enc
 from kv_quant.evaluation.lm_evaluator import evaluate
 
 parser = argparse.ArgumentParser()
+# model settings
 parser.add_argument("--model_path", type=str, default='/share/datasets/public_models/Llama-2-7b-chat-hf', help="path of the hf model")
 parser.add_argument("--model_id", type=str, default='llama2-7b-chat', help="model_id")
 parser.add_argument("--output_path", type=str, default=None, help="path to save the quantized model")
+# offline quant settings
 parser.add_argument("--offline_cache_path", type=str, default='../data/quant_cache/llama2-7b-chat/a8.pkl')
 parser.add_argument("--offline_excluded", type=str, default=None)   # separate with comma, eg. "down_proj,up_proj"
+# evaluation settings
 parser.add_argument("--eval_tasks", type=str, default='wikitext')   # separate with comma, eg. "wikitext,lambada,hellaswag"
-parser.add_argument("--use_flash_attn", action="store_true")
+parser.add_argument("--eval_limit", type=int, default=None)
+parser.add_argument("--eval_batch_size", type=int, default=1)
+# quantization bitwidth settings
 parser.add_argument("--w_group_size", type=int, default=128)
 parser.add_argument("--w_bit", type=int, default=4)
 parser.add_argument("--a_group_size", type=int, default=128)
 parser.add_argument("--a_bit", type=int, default=8)
+# TODO: not supported, just keep the interface compatible with the original script
 parser.add_argument("--kv_group_size", type=int, default=128)
 parser.add_argument("--kv_bit", type=int, default=16)
+parser.add_argument("--use_flash_attn", action="store_true")
 args = parser.parse_args()
 
 
@@ -32,8 +39,8 @@ def main():
     enc.pad_token = enc.eos_token
 
     # full evaluation on original model
-    # if args.eval_tasks:
-    #     evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=None, limit=500, batch_size=1, max_length=4096)
+    if args.eval_tasks:
+        evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=None, limit=args.eval_limit, batch_size=args.eval_batch_size, max_length=4096)
 
     # quantize model
     if args.offline_excluded:
@@ -64,8 +71,8 @@ def main():
     print('='*40)
 
     # full evaluation on quant model
-    # if args.eval_tasks:
-    #     evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=f'W{args.w_bit} A{args.a_bit}', limit=500, batch_size=1, max_length=4096)
+    if args.eval_tasks:
+        evaluate(args.model_id, model, enc, args.eval_tasks, quant_bitwidth=f'W{args.w_bit} A{args.a_bit}', limit=args.eval_limit, batch_size=args.eval_batch_size, max_length=4096)
 
 if __name__ == "__main__":
     main()
