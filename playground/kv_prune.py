@@ -1,0 +1,1 @@
+from kv_quant.kv_pruning.kv_prune_wrapper import prune_model_kv
