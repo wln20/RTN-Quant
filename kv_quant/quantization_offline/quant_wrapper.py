@@ -198,7 +198,7 @@ def quantize_model(model, args, quant_mix_gate=False, offline_cache=None, offlin
                             if patt.lower() in name.lower():    # some modules use online quantization, while others use offline scales and zeros
                                 offline_cache_this = None   
 
-                new_linear = WALinear.from_float(module, weight_quant='per_group', act_quant='per_token', w_bit=args.w_bit, a_bit=args.a_bit, \
+                new_linear = WALinear.from_float(module, weight_quant='per_group', act_quant=args.act_quant, zero_point=args.zero_point, w_bit=args.w_bit, a_bit=args.a_bit, \
                     weight_group=args.w_group_size, quantize_output=False, offline_cache=offline_cache_this, return_param=return_param, max_len=max_len)
                 father_module = get_module_by_name_suffix(model, '.'.join(name.split('.')[:-1]))
                 setattr(father_module, name.split('.')[-1], new_linear)

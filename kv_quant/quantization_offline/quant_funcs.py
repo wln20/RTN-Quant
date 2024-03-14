@@ -32,60 +32,49 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
             scales = max_val / max_int
             zeros = 0
     else:   # offline quantization, use pre-generated scales and zeros
-        if zero_point:
+        if zero_point:  # asymmetric quant
             max_int = 2**n_bits - 1
             min_int = 0
-            seq_len = int(tensor.shape[0] / batch)   # tensor.shape: prefill: [26, 4096] <- [2, 13, 4096], or decode: [2, 4096] <- [2, 1, 4096]
-            if seq_len == 1:    # at decoding stage, use position_id to locate
-                if batch == 1:
-                    scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
-                    zeros = offline_cache[1][position_id].unsqueeze(0).to(tensor.device)
-                else:   # decoding stage but multi batches
-                    scales = repeat(offline_cache[0][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
-                    zeros = repeat(offline_cache[1][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
+            if per_tensor:  # per-tensor quant for activation, scales.shape and zeros.shape = [1,1]
+                scales = offline_cache[0].to(tensor.device)   # shape = [[1]]
+                zeros = offline_cache[1].to(tensor.device)   
 
-            else:   # prefill stage or kv-cache disabled
-                if batch == 1:
-                    scales = offline_cache[0][:seq_len].to(tensor.device)
-                    zeros = offline_cache[1][:seq_len].to(tensor.device)
-                else:   # prefill stage and multi batches
-                    scales = repeat(offline_cache[0][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
-                    zeros = repeat(offline_cache[1][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
+            else:   # per-token quant for activation
+                seq_len = int(tensor.shape[0] / batch)   # tensor.shape: prefill: [26, 4096] <- [2, 13, 4096], or decode: [2, 4096] <- [2, 1, 4096]
+                if seq_len == 1:    # at decoding stage, use position_id to locate
+                    if batch == 1:
+                        scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)   # [1] -> [[1]]
+                        zeros = offline_cache[1][position_id].unsqueeze(0).to(tensor.device)
+                    else:   # decoding stage but multi batches
+                        scales = repeat(offline_cache[0][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
+                        zeros = repeat(offline_cache[1][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
 
+                else:   # prefill stage or kv-cache disabled
+                    if batch == 1:
+                        scales = offline_cache[0][:seq_len].to(tensor.device)   
+                        zeros = offline_cache[1][:seq_len].to(tensor.device)
+                    else:   # prefill stage and multi batches
+                        scales = repeat(offline_cache[0][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
+                        zeros = repeat(offline_cache[1][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
 
-            # ================= experiment ================================
-            # pre = 1
-            # max_val = tensor[:pre].amax(dim=1, keepdim=True)
-            # min_val = tensor[:pre].amin(dim=1, keepdim=True)
-            # max_int = 2**n_bits - 1
-            # min_int = 0
-            # scales_pre = (max_val - min_val).clamp(min=1e-5) / max_int
-            # zeros_pre = (-torch.round(min_val / scales_pre)).clamp_(min_int, max_int)
-
-            # scales = offline_cache[0][pre:tensor.shape[0]].to(tensor.device)
-            # zeros = offline_cache[1][pre:tensor.shape[0]].to(tensor.device)
-
-            # scales = torch.cat((scales_pre, scales), dim=0)
-            # zeros = torch.cat((zeros_pre, zeros), dim=0)
-            # ==============================================================
-        else:
-            # TODO: modify
+        else:   # symmetric quant
             max_int = 2 ** (n_bits - 1) - 1
             min_int = -(2 ** (n_bits - 1))
             zeros = 0
-            seq_len = int(tensor.shape[0] / batch)   # tensor.shape: prefill: [26, 4096] <- [2, 13, 4096], or decode: [2, 4096] <- [2, 1, 4096]
-            if seq_len == 1:    # at decoding stage, use position_id to locate
-                if batch == 1:
-                    scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
-                else:   # decoding stage but multi batches
-                    scales = repeat(offline_cache[0][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
-            else:   # prefill stage or kv-cache disabled
-                if batch == 1:
-                    scales = offline_cache[0][:seq_len].to(tensor.device)
-                else:   # prefill stage and multi batches
-                    scales = repeat(offline_cache[0][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
-
-
+            if per_tensor:  # per-tensor quant for activation, scales.shape and zeros.shape = [1,1]
+                scales = offline_cache[0].to(tensor.device)  
+            else:   # per-token quant for activation
+                seq_len = int(tensor.shape[0] / batch)   # tensor.shape: prefill: [26, 4096] <- [2, 13, 4096], or decode: [2, 4096] <- [2, 1, 4096]
+                if seq_len == 1:    # at decoding stage, use position_id to locate
+                    if batch == 1:
+                        scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
+                    else:   # decoding stage but multi batches
+                        scales = repeat(offline_cache[0][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
+                else:   # prefill stage or kv-cache disabled
+                    if batch == 1:
+                        scales = offline_cache[0][:seq_len].to(tensor.device)
+                    else:   # prefill stage and multi batches
+                        scales = repeat(offline_cache[0][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
 
     if inplace:
         (
@@ -102,27 +91,30 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
 
     if return_param:
     # return the quantized tonsor, the scaling factor and the zero point value
-        return tensor, scales.view(tensor.shape[0], -1), zeros.view(tensor.shape[0], -1)    # if seq_len=13, then scales.shape and zeros.shape = [13,1]
+        assert batch == 1, f"When generating scales and zeros offline, batch size must be 1, but got {batch}!"
+        assert q_group_size == -1, f"Only support per-token or per-tensor offline activation quantization!"
+        if per_tensor:  # per-tensor quant for activation
+            # scales.shape and zeros.shape = [1,1]
+            return tensor, scales, zeros
+        else:   # per-token quant for activation
+            return tensor, scales.view(tensor.shape[0], -1), zeros.view(tensor.shape[0], -1)    # if seq_len=13, then scales.shape and zeros.shape = [13,1]
     return tensor
 
 
 @torch.no_grad()
-def quantize_weight_per_channel_absmax(w, n_bits=8, offline_cache=None, position_id=0, return_param=False):
+def quantize_weight_per_channel_absmax(w, n_bits=8):
     """
     The basic quantization function for weight, activation and KV cache.
     """
-    res = pseudo_quantize_tensor(w, n_bits=n_bits, zero_point=False, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, return_param=return_param)
-    if return_param:
-        tensor, scales, zeros = res
-        return tensor, scales, zeros
+    res = pseudo_quantize_tensor(w, n_bits=n_bits, zero_point=False, q_group_size=-1, per_tensor=False, inplace=False)
     return res
     
 @torch.no_grad()
-def quantize_activation_per_token_absmax(t, n_bits=8, offline_cache=None, position_id=0, return_param=False):
+def quantize_activation_per_token_absmax(t, n_bits=8, zero_point=True, offline_cache=None, position_id=0, return_param=False):
     t_shape = t.shape
     batch = t_shape[0] if t.dim() == 3 else 1
     t = t.view(-1, t_shape[-1]) # [1, 13, 4096] -> [13, 4096]. when using batch: [2, 13, 4096] -> [26, 4096]
-    res = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=True, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, batch=batch, return_param=return_param)
+    res = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=zero_point, q_group_size=-1, per_tensor=False, inplace=False, offline_cache=offline_cache, position_id=position_id, batch=batch, return_param=return_param)
     if return_param:
         tensor, scales, zeros = res # [13, 4096], [13, 1], [13, 1]
         return tensor.reshape(t_shape), scales, zeros   # [13, 4096] -> [1, 13, 4096]
@@ -137,8 +129,11 @@ def quantize_weight_per_tensor_absmax(w, n_bits=8):
     return tensor
     
 @torch.no_grad()
-def quantize_activation_per_tensor_absmax(t, n_bits=8):
-    t_shape = t.shape
-    t = t.view(-1, t_shape[-1])
-    t = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=True, q_group_size=-1, per_tensor=True, inplace=False)
+def quantize_activation_per_tensor_absmax(t, n_bits=8, zero_point=True, offline_cache=None, position_id=0, return_param=False):
+    batch = t_shape[0] if t.dim() == 3 else 1
+    t = t.view(-1, t_shape[-1]) # [1, 13, 4096] -> [13, 4096]. when using batch: [2, 13, 4096] -> [26, 4096]
+    t = pseudo_quantize_tensor(t, n_bits=n_bits, zero_point=zero_point, q_group_size=-1, per_tensor=True, inplace=False, offline_cache=offline_cache, position_id=position_id, batch=batch, return_param=return_param)
+    if return_param:
+        tensor, scales, zeros = res # [13, 4096], [1, 1], [1, 1]
+        return tensor.reshape(t_shape), scales, zeros   # [13, 4096] -> [1, 13, 4096]
     return t.reshape(t_shape)

@@ -9,7 +9,7 @@ import argparse
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model_name', default='llama2-7b-chat')
+parser.add_argument('--model_id', default='llama2-7b-chat')
 parser.add_argument('--tokenizer', default='/share/datasets/public_models/Llama-2-7b-chat-hf')
 parser.add_argument('--calib_dataset', default='mit-han-lab/pile-val-backup')
 parser.add_argument('--output_path', default='../../data/calib_dataset')
@@ -19,7 +19,7 @@ args = parser.parse_args()
 tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 tokenizer.pad_token = tokenizer.eos_token
 
-info = DatasetInfo(description=args.model_name)
+info = DatasetInfo(description=args.model_id)
 
 tgt_ds = {'text':[], 'token_ids': []}
 ori_ds = load_dataset(args.calib_dataset, split='validation')
@@ -31,7 +31,7 @@ for i in tqdm(range(len(ori_ds))):
     tgt_ds['token_ids'].append(token_ids)
 
 tgt_ds = Dataset.from_dict(tgt_ds, info=info)
-tgt_ds.save_to_disk(args.output_path)
+tgt_ds.save_to_disk(os.path.join(args.output_path, f'calib_dataset_{args.model_id}'))
 
 
     

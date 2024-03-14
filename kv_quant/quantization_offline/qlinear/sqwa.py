@@ -4,7 +4,7 @@ from functools import partial
 from kv_quant.quantization_offline.quant_funcs import *
 
 class WALinear(nn.Module):
-    def __init__(self, in_features, out_features, bias=True, act_quant='per_token', a_bit=8, w_bit=8, quantize_output=False, dev='cuda', offline_cache=None, return_param=False, max_len=4096):
+    def __init__(self, in_features, out_features, bias=True, act_quant='per_token', zero_point=True, a_bit=8, w_bit=8, quantize_output=False, dev='cuda', offline_cache=None, return_param=False, max_len=4096):
         """
         offline_cache: use offline-generated scales and zeros for quantization
         return_param: whether to return calculated scales and zeros, used at the offline-generation stage on the calib dataset
@@ -19,9 +19,15 @@ class WALinear(nn.Module):
             # average scales and zeros on calib dataset, only support per_token act quant now
             # in this module, the act_scales and act_zeros are the sum of all the activation features. 
             # need to do average when calculating
-            self.act_scales = torch.zeros(max_len, 1)
-            self.act_zeros = torch.zeros(max_len, 1)
-            self.num_acts = 0
+            if act_quant == 'per_token':
+                self.act_scales = torch.zeros(max_len, 1)
+                self.act_zeros = torch.zeros(max_len, 1)
+            elif act_quant == 'per_tensor':   
+                self.act_scales = torch.zeros(1, 1)
+                self.act_zeros = torch.zeros(1, 1) 
+            else:
+                raise ValueError(f'Invalid act_quant: {act_quant}')      
+            self.num_acts = 0   # a counter used for the average calculation of the scales and zeros
         # the position_id of the current token (only applicable to decoding stage)   
         self.position_id = 0
 
@@ -33,14 +39,16 @@ class WALinear(nn.Module):
         else:
             self.register_buffer('bias', None)
 
+    # todo: zero_point
+
         if act_quant == 'per_token':
             self.act_quant_name = 'per_token'
             self.act_quant = partial(
-                quantize_activation_per_token_absmax, n_bits=self.a_bit, offline_cache=offline_cache, return_param=return_param)
+                quantize_activation_per_token_absmax, n_bits=self.a_bit, zero_point=zero_point, offline_cache=offline_cache, return_param=return_param)
         elif act_quant == 'per_tensor':
             self.act_quant_name = 'per_tensor'
             self.act_quant = partial(
-                quantize_activation_per_tensor_absmax, n_bits=self.a_bit, offline_cache=offline_cache, return_param=return_param)
+                quantize_activation_per_tensor_absmax, n_bits=self.a_bit, zero_point=zero_point, offline_cache=offline_cache, return_param=return_param)
         else:
             raise ValueError(f'Invalid act_quant: {act_quant}')
 
@@ -65,8 +73,12 @@ class WALinear(nn.Module):
         # return scales and activations, used when generating scales and activations offline
         if self.return_param:   
             q_x, scales, zeros = self.act_quant(x, position_id=self.position_id)
-            self.act_scales[: scales.shape[0]] += scales.cpu()
-            self.act_zeros[: zeros.shape[0]] += zeros.cpu()
+            if self.act_quant_name == 'per_token':
+                self.act_scales[: scales.shape[0]] += scales.cpu()
+                self.act_zeros[: zeros.shape[0]] += zeros.cpu()
+            elif self.act_quant_name == 'per_tensor':
+                self.act_scales += scales.cpu()
+                self.act_zeros += zeros.cpu()             
             self.num_acts += 1
         else:  
             q_x = self.act_quant(x, position_id=self.position_id)
@@ -85,10 +97,10 @@ class WALinear(nn.Module):
         return q_y
 
     @staticmethod
-    def from_float(module, weight_quant='per_channel', act_quant='per_token', w_bit=4, a_bit=8, weight_group=128, quantize_output=False, offline_cache=None, return_param=False, max_len=4096):
+    def from_float(module, weight_quant='per_channel', act_quant='per_token', zero_point=True, w_bit=4, a_bit=8, weight_group=128, quantize_output=False, offline_cache=None, return_param=False, max_len=4096):
         assert isinstance(module, torch.nn.Linear)
         new_module = WALinear(
-            module.in_features, module.out_features, module.bias is not None, act_quant=act_quant, a_bit=a_bit, w_bit=w_bit, quantize_output=quantize_output, dev=module.weight.device, offline_cache=offline_cache, return_param=return_param, max_len=max_len)
+            module.in_features, module.out_features, module.bias is not None, act_quant=act_quant, zero_point=zero_point, a_bit=a_bit, w_bit=w_bit, quantize_output=quantize_output, dev=module.weight.device, offline_cache=offline_cache, return_param=return_param, max_len=max_len)
         
         # Quantize the weight matrices
         if weight_quant == 'per_channel':

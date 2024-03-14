@@ -21,11 +21,13 @@ parser.add_argument("--offline_excluded", type=str, default=None)   # separate w
 parser.add_argument("--eval_tasks", type=str, default='wikitext')   # separate with comma, eg. "wikitext,lambada,hellaswag"
 parser.add_argument("--eval_limit", type=int, default=None)
 parser.add_argument("--eval_batch_size", type=int, default=1)
-# quantization bitwidth settings
+# quantization settings
 parser.add_argument("--w_group_size", type=int, default=128)
 parser.add_argument("--w_bit", type=int, default=4)
 parser.add_argument("--a_group_size", type=int, default=128)
 parser.add_argument("--a_bit", type=int, default=8)
+parser.add_argument("--act_quant", type=str, choices=['per_token', 'per_tensor'], default='per_token')
+parser.add_argument("--zero_point", type=bool, default=True)
 # TODO: not supported, just keep the interface compatible with the original script
 parser.add_argument("--kv_group_size", type=int, default=128)
 parser.add_argument("--kv_bit", type=int, default=16)
