@@ -69,10 +69,22 @@ def pseudo_quantize_tensor(tensor, n_bits=8, zero_point=True, q_group_size=-1, p
             # zeros = torch.cat((zeros_pre, zeros), dim=0)
             # ==============================================================
         else:
+            # TODO: modify
             max_int = 2 ** (n_bits - 1) - 1
             min_int = -(2 ** (n_bits - 1))
-            scales = offline_cache[0][:tensor.shape[0]].to(tensor.device)
             zeros = 0
+            seq_len = int(tensor.shape[0] / batch)   # tensor.shape: prefill: [26, 4096] <- [2, 13, 4096], or decode: [2, 4096] <- [2, 1, 4096]
+            if seq_len == 1:    # at decoding stage, use position_id to locate
+                if batch == 1:
+                    scales = offline_cache[0][position_id].unsqueeze(0).to(tensor.device)
+                else:   # decoding stage but multi batches
+                    scales = repeat(offline_cache[0][position_id], 'w -> repeat w', repeat=batch).to(tensor.device)
+            else:   # prefill stage or kv-cache disabled
+                if batch == 1:
+                    scales = offline_cache[0][:seq_len].to(tensor.device)
+                else:   # prefill stage and multi batches
+                    scales = repeat(offline_cache[0][:seq_len], 'h w -> (repeat h) w', repeat=batch).to(tensor.device)
+
 
 
     if inplace:

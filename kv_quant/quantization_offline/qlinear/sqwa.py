@@ -60,7 +60,7 @@ class WALinear(nn.Module):
 
     @torch.no_grad()
     def forward(self, x):
-        # x: [1, 13, 4096]. when using batch, it's like: [2, 13, 4096]. when decoding, it's like: [1, 1, 4096]
+        # x: [1, 13, 4096]. when using batch, it's like: [2, 13, 4096]. when decoding, it's like: [2, 1, 4096]
 
         # return scales and activations, used when generating scales and activations offline
         if self.return_param:   
