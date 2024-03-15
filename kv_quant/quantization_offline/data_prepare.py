@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_id', default='llama2-7b-chat')
-parser.add_argument('--tokenizer', default='/share/datasets/public_models/Llama-2-7b-chat-hf')
+parser.add_argument('--tokenizer', default='/path/to/llama2-7b-chat')
 parser.add_argument('--calib_dataset', default='mit-han-lab/pile-val-backup')
 parser.add_argument('--output_path', default='../../data/calib_dataset')
 parser.add_argument('--chunk_size', default=4096)

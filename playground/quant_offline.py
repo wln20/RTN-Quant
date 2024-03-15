@@ -11,7 +11,7 @@ from kv_quant.evaluation.lm_evaluator import evaluate
 
 parser = argparse.ArgumentParser()
 # model settings
-parser.add_argument("--model_path", type=str, default='/share/datasets/public_models/Llama-2-7b-chat-hf', help="path of the hf model")
+parser.add_argument("--model_path", type=str, default='path/to/llama2-7b-chat', help="path of the hf model")
 parser.add_argument("--model_id", type=str, default='llama2-7b-chat', help="model_id")
 parser.add_argument("--output_path", type=str, default=None, help="path to save the quantized model")
 # offline quant settings

@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 setup(
     name="kv_quant",
     version="0.1.0",
-    description="graduation project of wln",
+    description="Online and offline simulated quantization framework for LLMs",
     author="Luning Wang",
     author_email="wangluning2@gmail.com",
     # url="https://github.com/XXX.git",
