@@ -7,7 +7,7 @@ def get_module_by_name_suffix(model, module_name: str):
             return module
 
 # build model and tokenizer
-def build_model_and_enc(model_path, use_flash_attn, kv_bit=16, kv_group_size=128):
+def build_model_and_enc(model_path, use_flash_attn=False, kv_bit=16, kv_group_size=128):
     print(f"* Building model {model_path}")
 
     # weither trust remote code

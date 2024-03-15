@@ -125,11 +125,11 @@ class LlamaAttention(nn.Module):
             key_states = self.k_proj(hidden_states)
             value_states = self.v_proj(hidden_states)
 
-        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2) # batch_size=2, seq_len=9, prefill: [2, 9, 4096] -> [2, 32, 9, 128] = [bsz, num_heads, seq_len, head_dim]; decode: [2, 32, 1, 128]
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
-        past_key_value = getattr(self, "past_key_value", past_key_value)
+        past_key_value = getattr(self, "past_key_value", past_key_value)    # DynamicCache(), len == 32 (ie. layer_num), each element is a tuple containing one layer's kv-cache: (k_cache, v_cache) = ([2, 32, 9, 128], [2, 32, 9, 128]) 
         cos, sin = self.rotary_emb(value_states, position_ids)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
@@ -141,22 +141,22 @@ class LlamaAttention(nn.Module):
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; position_ids needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)    # batch_size=2, seq_len=9, prefill: [2, 32, 9, 128]; decode: [2, 32, 1, 128] -> [2, 32, 10, 128]
 
-        key_states = repeat_kv(key_states, self.num_key_value_groups)
+        key_states = repeat_kv(key_states, self.num_key_value_groups)    
         value_states = repeat_kv(value_states, self.num_key_value_groups)
 
-        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)    # batch_size=2, seq_len=9, prefill: [2, 32, 9, 128] * [2, 32, 9, 128]^T -> [2, 32, 9, 9]; decode: [2, 32, 1, 128] * [2, 32, 10, 128]^T -> [2, 32, 1, 10]
 
-        if attention_mask is not None:  # no matter the length, we just slice it
-            if cache_position is not None:
-                causal_mask = attention_mask[:, :, cache_position, : key_states.shape[-2]]
+        if attention_mask is not None:  # no matter the length, we just slice it    # batch_size=2, seq_len=9, prefill & decode: [2, 1, 4096, 4096]
+            if cache_position is not None:  # batch_size=2, seq_len=9, prefill: [0, 1, ..., 8]; decode: [9]
+                causal_mask = attention_mask[:, :, cache_position, : key_states.shape[-2]]  # batch_size=2, seq_len=9, prefill: [2, 1, 9, 9]; decode: [2, 1, 1, 10] (all zero, no use in fact)
             attn_weights = attn_weights + causal_mask
 
         # upcast attention to fp32
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)  # batch_size=2, seq_len=9, prefill: [2, 32, 9, (9)]; decode: [2, 32, 1, (10)]
         attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
-        attn_output = torch.matmul(attn_weights, value_states)
+        attn_output = torch.matmul(attn_weights, value_states)  # batch_size=2, seq_len=9, prefill: [2, 32, 9, 9] * [2, 32, 9, 128] -> [2, 32, 9, 128]; decode: [2, 32, 1, 10] * [2, 32, 10, 128] -> [2, 32, 1, 128]
 
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
@@ -164,9 +164,9 @@ class LlamaAttention(nn.Module):
                 f" {attn_output.size()}"
             )
 
-        attn_output = attn_output.transpose(1, 2).contiguous()
+        attn_output = attn_output.transpose(1, 2).contiguous()  # # batch_size=2, seq_len=9, prefill: [2, 32, 9, 128] -> [2, 9, 32, 128]; decode: [2, 32, 1, 128] -> [2, 1, 32, 128]
 
-        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size) # batch_size=2, seq_len=9, prefill: [2, 9, 32, 128] -> [2, 9, 4096]; decode: [2, 1, 32, 128] -> [2, 1, 4096]
 
         if self.config.pretraining_tp > 1:
             attn_output = attn_output.split(self.hidden_size // self.config.pretraining_tp, dim=2)
